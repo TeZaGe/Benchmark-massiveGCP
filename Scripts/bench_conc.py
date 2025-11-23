@@ -4,7 +4,7 @@ import re
 import time
 
 # --- CONFIGURATION ---
-TARGET_URL = "https://massive-gcp-473713.ew.r.appspot.com/timeline/user1" 
+TARGET_URL = "https://massive-gcp-473713.ew.r.appspot.com/api/timeline?user=user1"
 OUTPUT_FILE = "out/conc.csv"
 PARAMS = [1, 10, 20, 50, 100, 1000] 
 
@@ -22,7 +22,7 @@ def run():
             print(f"\n--- Test Concurrence: {c} (Requêtes: {n}) ---")
 
             for run_id in range(1, 4): 
-                cmd = f"ab -k -c {c} -n {n} -t 5 {TARGET_URL}"
+                cmd = f"ab -k -c {c} -n {n} -t 5 \"{TARGET_URL}\""
                 
                 avg_time = "0ms"
                 failed = 0

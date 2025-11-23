@@ -1,16 +1,15 @@
 import subprocess
 import csv
-import os
 import re
 import time
 
 # --- CONFIGURATION ---
-TARGET_URL = "https://massive-gcp-473713.ew.r.appspot.com/"
+TARGET_URL = "https://massive-gcp-473713.ew.r.appspot.com/api/timeline?user=user1"
 OUTPUT_FILE = "out/post.csv"
-POSTS_PER_USER = [10, 100, 1000] 
+POSTS_PER_USER = [10, 50, 100]
 NB_USERS = 1000
 FOLLOWERS = 20
-CONCURRENCY = 50 
+CONCURRENCY = 50
 
 def run_cmd(cmd):
     subprocess.run(cmd, shell=True, check=True)
@@ -27,17 +26,17 @@ def run():
             print(f"==============================================")
 
             # 1. CLEAN
-            print("-> Nettoyage de la base...")
+            print("-> Nettoyage de la base")
             run_cmd("python3 clean.py")
 
             # 2. SEED
-            print(f"-> Génération des données ({total_posts} posts)...")
+            print(f"-> Génération des données")
             run_cmd(f"python3 seed.py --users {NB_USERS} --posts {total_posts} --follows-min {FOLLOWERS} --follows-max {FOLLOWERS}")
 
             # 3. BENCHMARK
-            print(f"-> Lancement du benchmark (Concurrence {CONCURRENCY})...")
+            print(f"-> Lancement du benchmark")
             for run_id in range(1, 4):
-                cmd = f"ab -k -c {CONCURRENCY} -n {CONCURRENCY*2} -t 5 {TARGET_URL}"
+                cmd = f"ab -k -c {CONCURRENCY} -n {CONCURRENCY*2} -t 5 \"{TARGET_URL}\""
                 
                 avg_time = "0ms"
                 failed = 0
