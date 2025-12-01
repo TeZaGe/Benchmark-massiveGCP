@@ -22,3 +22,6 @@ Benchmark de l'application Massive GCP : génération de fichiers CSV et visuali
 - Les CSV dans `/out` sont ceux générés par les versions les plus récentes des scripts.
 - `boxplot.py` permet de sélectionner depuis le terminal le dossier à analyser et d’afficher des boxplots à partir des CSV pour comparer les performances entre scénarios.
 - Conseil : utiliser `/out` pour les plots avec les scripts fonctionnel `/old` pour afficher ce que j'ai obtenu avec la mauvaise méthode.
+
+## Les Plots
+
