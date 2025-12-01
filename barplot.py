@@ -81,8 +81,9 @@ def generer_graphiques(source_folder, output_folder='plots'):
             
             # Vérification que la colonne PARAM existe pour l'axe X
             if 'PARAM' in df.columns:
-                sns.boxplot(x='PARAM', y='AVG_TIME_VAL', data=df, ax=ax, color=config['color'])
-                
+                # On trace un barplot de la moyenne par PARAM (avec erreur type écart-type)
+                sns.barplot(x='PARAM', y='AVG_TIME_VAL', data=df, ax=ax, color=config['color'], ci='sd')
+
                 ax.set_title(title, fontsize=12, fontweight='bold')
                 ax.set_xlabel(config['xlabel'])
                 ax.set_ylabel('Temps de réponse (ms)')
@@ -90,6 +91,19 @@ def generer_graphiques(source_folder, output_folder='plots'):
                 # Log scale si valeurs très grandes
                 if df['AVG_TIME_VAL'].max() > 2000:
                     ax.set_yscale('log')
+
+                # Annoter chaque barre avec la valeur moyenne arrondie
+                for p in ax.patches:
+                    try:
+                        height = p.get_height()
+                        if height is None:
+                            continue
+                        ax.annotate(f"{int(height)}ms",
+                                    (p.get_x() + p.get_width() / 2., height),
+                                    ha='center', va='bottom', fontsize=9, color='black',
+                                    xytext=(0, 4), textcoords='offset points')
+                    except Exception:
+                        pass
 
                 plt.tight_layout()
 
