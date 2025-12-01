@@ -9,22 +9,16 @@ BASE_URL = "https://massive-gcp-473713.ew.r.appspot.com/api/timeline"
 OUTPUT_FILE = "out/fanout.csv"
 
 # Paramètres du test
-FOLLOWS_STEPS = [10, 50, 100]  # On fait varier les followers
+FOLLOWS_STEPS = [10, 50, 100]
 FIXED_POSTS_PER_USER = 100     
 NB_USERS = 1000
-CONCURRENCY = 50               # 50 threads simultanés
+CONCURRENCY = 50
 
 def run_cmd(cmd):
-    """Exécute une commande shell (pour le seed/clean)."""
-    # astuce : ajouter print pour voir ce qu'il se passe
     print(f"[CMD] {cmd}")
     subprocess.run(cmd, shell=True, check=True)
 
 def benchmark_request(user_idx):
-    """
-    Exécute une requête HTTP nativement en Python.
-    Retourne (temps_ms, est_echec).
-    """
     url = f"{BASE_URL}?user=user{user_idx}"
     try:
         start_time = time.time()
@@ -50,7 +44,7 @@ def run():
         
         current_follows = 0
         
-        # 1. NETTOYAGE & INITIALISATION MASSIVE DES POSTS
+        # 1. NETTOYAGE & INITIALISATION
         print("\n--- INITIALISATION : Clean + Génération de tous les Posts ---")
         try:
             run_cmd("python3 clean.py")
@@ -59,7 +53,6 @@ def run():
             print(f"-> Création de {NB_USERS} users et {total_posts} posts...")
             print("-> (Si seed.py utilise le Batch, cela prendra ~10-30 secondes)")
             
-            # On initialise avec 0 followers
             run_cmd(f"python3 seed.py --users {NB_USERS} --posts {total_posts} --follows-min 0 --follows-max 0")
             print("-> Base initialisée avec succès.")
             

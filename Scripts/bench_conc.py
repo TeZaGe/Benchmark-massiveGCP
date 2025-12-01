@@ -1,98 +1,100 @@
 import subprocess
 import csv
-import re
 import time
 import argparse
-import threading
+import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # --- CONFIGURATION ---
 BASE_URL = "https://massive-gcp-473713.ew.r.appspot.com/api/timeline"
 OUTPUT_FILE = "out/conc.csv"
-PARAMS = [1, 10, 20, 50, 100, 1000]
 
+# Niveaux de concurrence à tester
+PARAMS = [1, 10, 20, 50, 100, 1000] 
+NB_USERS_DB = 1000
+NB_POSTS_PER_USER = 50
+NB_FOLLOWS = 20
 
-def run(num_users: int):
-    """Run concurrence tests: for each c in PARAMS launch min(c, num_users)
-    ab instances in parallel (each does a single request). This makes the
-    total concurrent requests equal to c when enough users are available.
-    """
+def run_cmd(cmd):
+    print(f"[CMD] {cmd}")
+    subprocess.run(cmd, shell=True, check=True)
+
+def benchmark_request(user_idx):
+    url = f"{BASE_URL}?user=user{user_idx}"
+    try:
+        start_time = time.time()
+        response = requests.get(url, timeout=10)
+        end_time = time.time()
+
+        if response.status_code >= 400:
+            return (0, 1)
+        
+        duration_ms = (end_time - start_time) * 1000
+        return (duration_ms, 0)
+
+    except requests.RequestException:
+        return (0, 1)
+
+def run():
+    # 1. INITIALISATION DES DONNÉES
+    print("\n--- INITIALISATION : Préparation de la base pour le test de charge ---")
+    try:
+        run_cmd("python3 clean.py")
+        
+        total_posts = NB_USERS_DB * NB_POSTS_PER_USER
+        print(f"-> Création de {NB_USERS_DB} users, {total_posts} posts, {NB_FOLLOWS} follows/user...")
+        
+        run_cmd(f"python3 seed.py --users {NB_USERS_DB} "
+                f"--posts {total_posts} "
+                f"--follows-min {NB_FOLLOWS} --follows-max {NB_FOLLOWS}")
+        print("-> Base prête.")
+    except Exception as e:
+        print(f"-> Erreur critique init: {e}")
+        return
+
+    # 2. BOUCLE DE TEST DE CHARGE
     with open(OUTPUT_FILE, 'w', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(["PARAM", "AVG_TIME", "RUN", "FAILED"])
-        print_lock = threading.Lock()
 
         for concurrency in PARAMS:
             c = concurrency
-            target_count = min(c, num_users)
-            if target_count < c:
-                with print_lock:
-                    print(f"[WARN] --users={num_users} < requested concurrency {c}. "
-                          f"Seuls {target_count} users seront lancés (parallélisme total = {target_count}).")
-
-            with print_lock:
-                print(f"\n--- Test Concurrence: {c} (instances simultanées: {target_count}) ---")
+            target_count = min(c, NB_USERS_DB)
+            
+            print(f"\n--- Test Concurrence: {c} (Threads actifs: {target_count}) ---")
 
             for run_id in range(1, 4):
-                with print_lock:
-                    print(f"  Run {run_id}/3 pour concurrency={c}")
-
-                def ab_one(user_idx: int):
-                    target_url = f"{BASE_URL}?user=user{user_idx}"
-                    cmd = f"ab -k -c 1 -n 1 -t 5 \"{target_url}\""
-                    try:
-                        res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-                        output = (res.stdout or "") + "\n" + (res.stderr or "")
-                        match = re.search(r"Time per request:\s+([0-9\.]+)\s+\[ms\]\s+\(mean\)", output)
-                        if match:
-                            return (int(float(match.group(1))), 0)
-                        else:
-                            with print_lock:
-                                print(f"[ab failed] cmd={cmd}\noutput=\n{output}")
-                            return (0, 1)
-                    except Exception as e:
-                        with print_lock:
-                            print(f"Erreur instance user{user_idx}: {e}")
-                        return (0, 1)
-
                 times = []
-                failed = 0
+                failed_count = 0
 
-                if target_count == 0:
-                    with print_lock:
-                        print("Aucun user disponible pour ce niveau de concurrence, on passe.")
-                    writer.writerow([c, "0ms", run_id, target_count])
-                    continue
-
-                with ThreadPoolExecutor(max_workers=target_count) as ex:
-                    futures = {ex.submit(ab_one, uid): uid for uid in range(1, target_count + 1)}
-                    for fut in as_completed(futures):
-                        t, err = fut.result()
-                        if err:
-                            failed += 1
+                # Lancement des requêtes en parallèle
+                with ThreadPoolExecutor(max_workers=target_count) as executor:
+                    futures = {executor.submit(benchmark_request, uid): uid for uid in range(1, target_count + 1)}
+                    
+                    for future in as_completed(futures):
+                        t_ms, is_failed = future.result()
+                        if is_failed:
+                            failed_count += 1
                         else:
-                            times.append(t)
+                            times.append(t_ms)
 
-                avg_time = f"{int(sum(times)/len(times))}ms" if times else "0ms"
-                with print_lock:
-                    if failed > 1 :
-                        failed = 1
-                    print(f"   Run {run_id}: {avg_time} | Failed: {failed}")
-                writer.writerow([c, avg_time, run_id, failed])
+                # Calcul des statistiques
+                if times:
+                    avg_val = sum(times) / len(times)
+                    avg_time_str = f"{avg_val:.2f}"
+                else:
+                    avg_time_str = "0"
+                
+                # Gestion de l'échec global du run
+                is_run_failed = 1 if failed_count > 0 else 0
+                
+                print(f"   Run {run_id}: {avg_time_str} ms | Fail: {failed_count}/{target_count}")
+                writer.writerow([c, avg_time_str, run_id, is_run_failed])
                 f.flush()
-                time.sleep(1)
+                
+                time.sleep(2)
 
-
-def parse_args():
-    p = argparse.ArgumentParser(description='Bench concurrence (ab) for multiple users')
-    p.add_argument('-u', '--users', type=int, default=None, help='Nombre d\'utilisateurs disponibles (user1..userN). Par défaut = max(PARAMS)')
-    return p.parse_args()
-
+    print("\n--- Benchmark Concurrence Terminé ---")
 
 if __name__ == '__main__':
-    args = parse_args()
-    users = args.users if args.users is not None else max(PARAMS)
-    if users < 1:
-        print("Le nombre d'utilisateurs doit être >= 1")
-    else:
-        run(users)
+    run()

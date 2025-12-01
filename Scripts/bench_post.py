@@ -9,25 +9,19 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 BASE_URL = "https://massive-gcp-473713.ew.r.appspot.com/api/timeline"
 OUTPUT_FILE = "out/post.csv"
 
-# Séquence demandée : 10 -> 100 -> 1000 
 POSTS_STEPS = [10, 100, 1000] 
 NB_USERS = 1000
 FOLLOWERS = 20
-CONCURRENCY = 50              # 50 threads simultans
+CONCURRENCY = 50
 
 def run_cmd(cmd):
-    """Exécute une commande shell (pour le seed/clean uniquement)."""
     subprocess.run(cmd, shell=True, check=True)
 
 def benchmark_request(user_idx):
-    """
-    Exécute une requête HTTP nativement en Python.
-    Retourne (temps_ms, est_echec).
-    """
     url = f"{BASE_URL}?user=user{user_idx}"
     try:
         start_time = time.time()
-        # Timeout de 5 minutes similaire à votre option -t 300 dans ab
+        # Timeout de 5 minutes
         response = requests.get(url, timeout=300)
         end_time = time.time()
 
@@ -49,7 +43,7 @@ def run():
         
         current_posts_per_user = 0
         
-        # 1. Nettoyage initial
+        #Nettoyage initial
         print("\n--- INITIALISATION : Nettoyage complet de la base ---")
         try:
             run_cmd("python3 clean.py")
@@ -58,7 +52,6 @@ def run():
             return
 
         for target_posts in sorted_steps:
-            # 2. SEED INCREMENTAL
             posts_needed_per_user = target_posts - current_posts_per_user
             
             if posts_needed_per_user > 0:
@@ -71,7 +64,7 @@ def run():
                 run_cmd(cmd_seed)
                 current_posts_per_user = target_posts
             
-            # 3. BENCHMARK PYTHON REQUESTS
+            # BENCHMARK PYTHON REQUESTS
             print(f"-> Benchmark {target_posts} Posts/User (Threads: {CONCURRENCY})")
             
             for run_id in range(1, 4):
