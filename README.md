@@ -1,4 +1,4 @@
-# Benchmark-massiveGCP
+# Benchmark-massiveGCP Thomas Modesto
 https://massive-gcp-473713.ew.r.appspot.com/
 
 ## Description
